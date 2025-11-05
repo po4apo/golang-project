@@ -1,0 +1,39 @@
+# Git
+.git
+.gitignore
+
+# Docker
+Dockerfile
+docker-compose.yaml
+.dockerignore
+
+# Build artifacts
+**/bin/
+**/tmp/
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Documentation
+README.md
+docs/
+
+# Scripts (кроме необходимых)
+scripts/
+
+# Deployment configs
+deploy/
+
+# Test files
+*_test.go
+
+# Temporary files
+/tmp/
+
+
+
+

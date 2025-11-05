@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package auth.v1;
+
+option go_package = "golang-project/api/proto/gen/go/auth/v1;authv1";
+
+service AuthService {
+    rpc SignIn(SignInRequest) returns (SignInResponse);
+    rpc SignUp(SignUpRequest) returns (SignUpResponse);
+    rpc ValidateToken(ValidateTokenRequest) returns (ValidateTokenResponse);
+}
+
+message SignInRequest { string email = 1; string password = 2; }
+message SignInResponse { string access_token = 1; string refresh_token = 2; }
+message SignUpRequest { string email = 1; string password = 2; }
+message SignUpResponse { string user_id = 1; }
+message ValidateTokenRequest { string token = 1; }
+message ValidateTokenResponse { string user_id = 1; bool valid = 2; }

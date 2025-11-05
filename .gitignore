@@ -1,0 +1,35 @@
+﻿# Go build artifacts
+bin/
+build/
+dist/
+coverage*
+
+# IDE/editor
+.idea/
+.vscode/
+*.code-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env/config
+.env
+.env.*
+
+# Dependencies (optional)
+vendor/
+
+# Generated code
+proto/gen/
+
+@generated/
+api/gen/
+bin/
+dist/
+.idea/
+.vscode/
+*.log
+coverage/
+
+@generated
