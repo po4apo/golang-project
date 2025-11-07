@@ -1,0 +1,243 @@
+name: Manual Deploy
+
+# Ручной деплой с выбором версии и окружения
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Окружение для деплоя'
+        required: true
+        type: choice
+        options:
+          - production
+          - development
+      version:
+        description: 'Версия для деплоя (Git SHA, branch или tag)'
+        required: true
+        default: 'main'
+      skip_tests:
+        description: 'Пропустить тесты'
+        required: false
+        type: boolean
+        default: false
+      force_rebuild:
+        description: 'Принудительная пересборка образов'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  GO_VERSION: '1.24'
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  validate:
+    name: Validate Input
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.version }}
+
+      - name: Validate version
+        run: |
+          echo "Deploying version: ${{ inputs.version }}"
+          echo "Target environment: ${{ inputs.environment }}"
+          echo "Skip tests: ${{ inputs.skip_tests }}"
+          echo "Force rebuild: ${{ inputs.force_rebuild }}"
+          git log -1 --oneline
+
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    needs: validate
+    if: ${{ !inputs.skip_tests }}
+    
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: testdb
+          POSTGRES_USER: testuser
+          POSTGRES_PASSWORD: testpass
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.version }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Run tests
+        env:
+          DB_DSN: postgres://testuser:testpass@localhost:5432/testdb?sslmode=disable
+        run: |
+          go test -v -race ./...
+
+  build:
+    name: Build Images
+    runs-on: ubuntu-latest
+    needs: [validate, test]
+    if: always() && (needs.test.result == 'success' || needs.test.result == 'skipped')
+    strategy:
+      matrix:
+        service: [auth-service, rest-api]
+    
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.version }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate image tag
+        id: tag
+        run: |
+          VERSION=${{ inputs.version }}
+          COMMIT_SHA=$(git rev-parse --short HEAD)
+          TAG="${VERSION}-${COMMIT_SHA}"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "Image tag: $TAG"
+
+      - name: Check if image exists
+        id: check
+        if: ${{ !inputs.force_rebuild }}
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.service }}:${{ steps.tag.outputs.tag }}"
+          if docker manifest inspect $IMAGE > /dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "Image already exists: $IMAGE"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "Image does not exist, will build: $IMAGE"
+          fi
+
+      - name: Build and push
+        if: steps.check.outputs.exists == 'false' || inputs.force_rebuild
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./services/${{ matrix.service }}/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.service }}:${{ steps.tag.outputs.tag }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.service }}:${{ inputs.version }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.service }}:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.service }}:buildcache,mode=max
+
+  deploy:
+    name: Deploy to ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    needs: build
+    environment:
+      name: ${{ inputs.environment }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.version }}
+
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Generate deployment tag
+        id: deploy_tag
+        run: |
+          VERSION=${{ inputs.version }}
+          COMMIT_SHA=$(git rev-parse --short HEAD)
+          TAG="${VERSION}-${COMMIT_SHA}"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Create deployment package
+        run: |
+          mkdir -p deploy-package
+          cp -r deploy/docker-compose/* deploy-package/
+          cp scripts/deploy.sh deploy-package/
+          chmod +x deploy-package/deploy.sh
+
+      - name: Deploy
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          scp -r deploy-package/* $SERVER_USER@$SERVER_HOST:$DEPLOY_PATH/
+          
+          ssh $SERVER_USER@$SERVER_HOST << 'ENDSSH'
+            set -e
+            cd ${{ secrets.DEPLOY_PATH }}
+            
+            export REGISTRY=${{ env.REGISTRY }}
+            export REPOSITORY=${{ env.IMAGE_NAME }}
+            export IMAGE_TAG=${{ steps.deploy_tag.outputs.tag }}
+            export GIT_COMMIT=$(git rev-parse HEAD)
+            export DEPLOYED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+            export POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+            export JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}
+            
+            echo "[$(date)] Manual deployment started by ${{ github.actor }}" >> deployment.log
+            echo "Version: $IMAGE_TAG" >> deployment.log
+            
+            ./deploy.sh
+            
+            echo "[$(date)] Manual deployment completed" >> deployment.log
+          ENDSSH
+
+      - name: Health check
+        run: |
+          sleep 10
+          for i in {1..5}; do
+            if curl -f http://${{ secrets.SERVER_HOST }}:8080/health; then
+              echo "✅ Deployment successful!"
+              exit 0
+            fi
+            echo "Attempt $i failed, retrying..."
+            sleep 5
+          done
+          echo "❌ Health check failed!"
+          exit 1
+
+      - name: Deployment summary
+        if: always()
+        run: |
+          echo "## Manual Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment:** ${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version:** ${{ inputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image Tag:** ${{ steps.deploy_tag.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Deployed by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status:** ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Timestamp:** $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_STEP_SUMMARY
+

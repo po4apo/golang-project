@@ -26,38 +26,49 @@ func NewAuthHandler(authClient *client.AuthClient) *AuthHandler {
 
 // SignUpRequest - тело запроса для регистрации
 type SignUpRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Email    string `json:"email" example:"user@example.com"`
+	Password string `json:"password" example:"Password123!"`
 }
 
 // SignUpResponse - тело ответа для регистрации
 type SignUpResponse struct {
-	UserID string `json:"user_id"`
+	UserID string `json:"user_id" example:"550e8400-e29b-41d4-a716-446655440000"`
 }
 
 // SignInRequest - тело запроса для входа
 type SignInRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Email    string `json:"email" example:"user@example.com"`
+	Password string `json:"password" example:"Password123!"`
 }
 
 // SignInResponse - тело ответа для входа
 type SignInResponse struct {
-	Token string `json:"token"`
+	Token string `json:"token" example:"temporary_token"`
 }
 
 // ValidateTokenResponse - тело ответа для валидации токена
 type ValidateTokenResponse struct {
-	UserID string `json:"user_id"`
-	Valid  bool   `json:"valid"`
+	UserID string `json:"user_id" example:"123"`
+	Valid  bool   `json:"valid" example:"true"`
 }
 
 // ErrorResponse - стандартный ответ об ошибке
 type ErrorResponse struct {
-	Error string `json:"error"`
+	Error string `json:"error" example:"invalid email format"`
 }
 
 // SignUp обрабатывает POST /api/v1/auth/signup
+// @Summary      Регистрация нового пользователя
+// @Description  Создаёт нового пользователя с email и паролем
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        request body SignUpRequest true "Данные для регистрации"
+// @Success      201 {object} SignUpResponse "Пользователь успешно создан"
+// @Failure      400 {object} ErrorResponse "Невалидные данные (email или пароль)"
+// @Failure      409 {object} ErrorResponse "Пользователь с таким email уже существует"
+// @Failure      500 {object} ErrorResponse "Внутренняя ошибка сервера"
+// @Router       /api/v1/auth/signup [post]
 func (h *AuthHandler) SignUp(w http.ResponseWriter, r *http.Request) {
 	var req SignUpRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -82,6 +93,18 @@ func (h *AuthHandler) SignUp(w http.ResponseWriter, r *http.Request) {
 }
 
 // SignIn обрабатывает POST /api/v1/auth/signin
+// @Summary      Вход пользователя
+// @Description  Аутентификация пользователя и получение токена
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        request body SignInRequest true "Данные для входа"
+// @Success      200 {object} SignInResponse "Успешный вход, токен выдан"
+// @Failure      400 {object} ErrorResponse "Невалидные данные"
+// @Failure      401 {object} ErrorResponse "Неверный пароль"
+// @Failure      404 {object} ErrorResponse "Пользователь не найден"
+// @Failure      500 {object} ErrorResponse "Внутренняя ошибка сервера"
+// @Router       /api/v1/auth/signin [post]
 func (h *AuthHandler) SignIn(w http.ResponseWriter, r *http.Request) {
 	var req SignInRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -106,6 +129,16 @@ func (h *AuthHandler) SignIn(w http.ResponseWriter, r *http.Request) {
 }
 
 // ValidateToken обрабатывает GET /api/v1/auth/validate
+// @Summary      Проверка токена
+// @Description  Валидация JWT токена и получение информации о пользователе
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        Authorization header string true "Bearer токен" default(Bearer temporary_token)
+// @Success      200 {object} ValidateTokenResponse "Токен валиден"
+// @Failure      401 {object} ErrorResponse "Отсутствует или невалидный токен"
+// @Failure      500 {object} ErrorResponse "Внутренняя ошибка сервера"
+// @Router       /api/v1/auth/validate [get]
 func (h *AuthHandler) ValidateToken(w http.ResponseWriter, r *http.Request) {
 	token := r.Header.Get("Authorization")
 	if token == "" {

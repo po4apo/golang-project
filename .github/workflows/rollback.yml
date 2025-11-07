@@ -1,0 +1,111 @@
+name: Rollback Deployment
+
+# Workflow для быстрого отката к предыдущей версии
+on:
+  workflow_dispatch:
+    inputs:
+      target_version:
+        description: 'Версия для отката (Git SHA или tag)'
+        required: true
+        type: string
+      environment:
+        description: 'Окружение для отката'
+        required: true
+        type: choice
+        options:
+          - production
+          - development
+
+env:
+  GO_VERSION: '1.24'
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  rollback:
+    name: Rollback to ${{ inputs.target_version }}
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.environment }}
+    
+    steps:
+      - name: Checkout code at target version
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_version }}
+
+      - name: Verify target version exists
+        run: |
+          echo "Rolling back to version: ${{ inputs.target_version }}"
+          git log -1 --oneline
+
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Verify Docker images exist
+        run: |
+          echo "Checking if images exist for version ${{ inputs.target_version }}"
+          # Здесь можно добавить проверку существования образов в registry
+
+      - name: Perform rollback
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          ssh $SERVER_USER@$SERVER_HOST << 'ENDSSH'
+            set -e
+            cd ${{ secrets.DEPLOY_PATH }}
+            
+            # Сохраняем текущее состояние перед откатом
+            cp .env .env.before_rollback
+            
+            # Обновляем IMAGE_TAG на целевую версию
+            export REGISTRY=${{ env.REGISTRY }}
+            export REPOSITORY=${{ env.IMAGE_NAME }}
+            export IMAGE_TAG=${{ inputs.target_version }}
+            
+            # Создаем новый .env
+            sed -i "s/^IMAGE_TAG=.*/IMAGE_TAG=$IMAGE_TAG/" .env
+            
+            echo "[$(date)] Starting rollback to version $IMAGE_TAG" >> deployment.log
+            
+            # Pull образов целевой версии
+            docker-compose -f docker-compose.production.yml pull
+            
+            # Перезапускаем сервисы
+            docker-compose -f docker-compose.production.yml up -d --force-recreate
+            
+            echo "[$(date)] Rollback to $IMAGE_TAG completed" >> deployment.log
+          ENDSSH
+
+      - name: Health check after rollback
+        run: |
+          sleep 15
+          
+          echo "Checking health after rollback..."
+          for i in {1..5}; do
+            if curl -f http://${{ secrets.SERVER_HOST }}:8080/health; then
+              echo "✅ Services healthy after rollback"
+              exit 0
+            fi
+            echo "Attempt $i failed, retrying..."
+            sleep 5
+          done
+          
+          echo "❌ Health check failed after rollback!"
+          exit 1
+
+      - name: Notify rollback status
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "✅ Rollback to ${{ inputs.target_version }} successful!"
+          else
+            echo "❌ Rollback to ${{ inputs.target_version }} failed!"
+          fi
+

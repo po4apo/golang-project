@@ -12,13 +12,37 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	httpSwagger "github.com/swaggo/http-swagger"
 
 	"golang-project/pkg/config"
 	"golang-project/pkg/logger"
 	"golang-project/services/rest-api/internal/client"
 	"golang-project/services/rest-api/internal/handlers"
 	custommw "golang-project/services/rest-api/internal/middleware"
+	
+	_ "golang-project/services/rest-api/docs" // импорт для swagger docs
 )
+
+// @title           Golang Microservices API
+// @version         1.0
+// @description     REST API Gateway для микросервисной архитектуры на Go с gRPC
+// @description     
+// @description     Этот API предоставляет endpoints для аутентификации пользователей.
+// @description     Backend построен на микросервисной архитектуре с использованием gRPC для межсервисного взаимодействия.
+
+// @contact.name   API Support
+// @contact.email  support@example.com
+
+// @license.name  MIT
+// @license.url   https://opensource.org/licenses/MIT
+
+// @host      88.218.169.245:8080
+// @BasePath  /
+
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description Введите токен в формате: Bearer {token}
 
 func main() {
 	// Загружаем конфигурацию
@@ -61,6 +85,11 @@ func main() {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
 	})
+
+	// Swagger UI
+	r.Get("/swagger/*", httpSwagger.Handler(
+		httpSwagger.URL("/swagger/doc.json"),
+	))
 
 	// Handlers
 	authHandler := handlers.NewAuthHandler(authClient)
@@ -109,6 +138,7 @@ func main() {
 
 	slog.Info("server stopped")
 }
+
 
 
 

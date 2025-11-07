@@ -1,0 +1,91 @@
+run:
+  timeout: 5m
+  tests: true
+  modules-download-mode: readonly
+
+linters:
+  enable:
+    - errcheck      # Проверка обработки ошибок
+    - gosimple      # Упрощение кода
+    - govet         # Стандартный анализ Go
+    - ineffassign   # Неиспользуемые присваивания
+    - staticcheck   # Статический анализ
+    - unused        # Неиспользуемый код
+    - gofmt         # Форматирование
+    - goimports     # Импорты
+    - misspell      # Опечатки
+    - gocritic      # Критика кода
+    - revive        # Быстрый линтер
+    - gosec         # Безопасность
+    - bodyclose     # HTTP body должно закрываться
+    - noctx         # HTTP запросы должны использовать context
+    
+  disable:
+    - typecheck     # Может конфликтовать с некоторыми генерированными файлами
+
+linters-settings:
+  errcheck:
+    check-blank: true
+    check-type-assertions: true
+    
+  govet:
+    check-shadowing: true
+    
+  gofmt:
+    simplify: true
+    
+  goimports:
+    local-prefixes: golang-project
+    
+  misspell:
+    locale: US
+    
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - experimental
+      - opinionated
+      - performance
+      - style
+      
+  revive:
+    rules:
+      - name: exported
+        severity: warning
+        disabled: false
+        
+  gosec:
+    severity: medium
+    confidence: medium
+    excludes:
+      - G104  # Некоторые ошибки можно игнорировать
+      
+issues:
+  exclude-rules:
+    # Исключаем сгенерированные файлы
+    - path: \.pb\.go$
+      linters:
+        - all
+        
+    - path: \.pb\.validate\.go$
+      linters:
+        - all
+        
+    - path: _test\.go
+      linters:
+        - errcheck
+        - gosec
+        
+    # Исключаем main.go от некоторых проверок
+    - path: cmd/main\.go
+      linters:
+        - errcheck
+
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  
+output:
+  format: colored-line-number
+  print-issued-lines: true
+  print-linter-name: true
+
