@@ -239,6 +239,7 @@ jobs:
             export DEPLOYED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
             export POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
             export JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}
+            export GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}  # ← Добавьте эту строку
             export LOG_LEVEL=info
             
             # Логируем деплой
