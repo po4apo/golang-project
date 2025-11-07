@@ -234,7 +234,7 @@ jobs:
             # Экспортируем переменные окружения
             export REGISTRY=${{ env.REGISTRY }}
             export REPOSITORY=${{ env.IMAGE_NAME }}
-            export IMAGE_TAG=${{ github.ref_name }}-${{ github.sha }}
+            export IMAGE_TAG=${{ github.ref_name }}
             export GIT_COMMIT=${{ github.sha }}
             export DEPLOYED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
             export POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
