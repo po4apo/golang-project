@@ -225,7 +225,10 @@ jobs:
           SERVER_USER: ${{ secrets.SERVER_USER }}
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-          JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
+          JWT_RSA_PRIVATE_KEY: ${{ secrets.JWT_RSA_PRIVATE_KEY }}
+          JWT_RSA_PUBLIC_KEY: ${{ secrets.JWT_RSA_PUBLIC_KEY }}
+          JWT_ISSUER: ${{ secrets.JWT_ISSUER }}
+          JWT_TTL: ${{ secrets.JWT_TTL }}
         run: |
           ssh $SERVER_USER@$SERVER_HOST << 'ENDSSH'
             set -e
@@ -238,8 +241,11 @@ jobs:
             export GIT_COMMIT=${{ github.sha }}
             export DEPLOYED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
             export POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
-            export JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}
-            export GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}  # ← Добавьте эту строку
+            export JWT_RSA_PRIVATE_KEY='${{ secrets.JWT_RSA_PRIVATE_KEY }}'
+            export JWT_RSA_PUBLIC_KEY='${{ secrets.JWT_RSA_PUBLIC_KEY }}'
+            export JWT_ISSUER=${{ secrets.JWT_ISSUER || 'auth-service' }}
+            export JWT_TTL=${{ secrets.JWT_TTL || '24h' }}
+            export GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
             export LOG_LEVEL=info
             
             # Логируем деплой
