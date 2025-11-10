@@ -30,7 +30,10 @@ services:
     environment:
       GRPC_ADDR: ":50051"
       DB_DSN: "postgres://authuser:authpass@postgres-auth:5432/authdb?sslmode=disable"
-      JWT_KEY: "your-secret-jwt-key-change-in-production"
+      JWT_RSA_PRIVATE_KEY: ${JWT_RSA_PRIVATE_KEY}
+      JWT_RSA_PUBLIC_KEY: ${JWT_RSA_PUBLIC_KEY}
+      JWT_ISSUER: ${JWT_ISSUER:-auth-service}
+      JWT_TTL: ${JWT_TTL:-24h}
       LOG_LEVEL: "info"
     ports:
       - "50051:50051"

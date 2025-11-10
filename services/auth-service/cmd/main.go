@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/reflection"
 
 	authv1 "golang-project/api/proto/gen/go/auth/v1"
+	"golang-project/pkg/auth/jwt"
 	"golang-project/pkg/config"
 	"golang-project/services/auth-service/internal/hash"
 	"golang-project/services/auth-service/internal/repo"
@@ -33,10 +34,17 @@ func main() {
 		log.Fatalf("failed to ping database: %v", err)
 	}
 	
+	// Инициализация JWT Manager
+	jwtManager, err := jwt.NewManagerFromEnv()
+	if err != nil {
+		log.Fatalf("failed to initialize JWT manager: %v", err)
+	}
+	log.Println("JWT manager initialized successfully")
+	
 	// Инициализация зависимостей
 	userRepo := repo.NewUserRepo(db)
 	hasher := hash.NewArgon2Hasher()
-	authService := service.NewAuthServer(userRepo, hasher)
+	authService := service.NewAuthServer(userRepo, hasher, jwtManager)
 	
 	// Запуск gRPC сервера
 	lis, err := net.Listen("tcp", cfg.GRPCAddr)

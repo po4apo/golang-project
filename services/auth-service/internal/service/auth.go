@@ -8,6 +8,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	authv1 "golang-project/api/proto/gen/go/auth/v1"
+	"golang-project/pkg/auth/jwt"
 	"golang-project/services/auth-service/internal/hash"
 	"golang-project/services/auth-service/internal/repo"
 	"golang-project/services/auth-service/internal/validator"
@@ -17,13 +18,15 @@ type AuthServer struct {
 	authv1.UnimplementedAuthServiceServer
 	repo   *repo.UserRepo
 	hasher *hash.Argon2Hasher
+	jwt    *jwt.Manager
 }
 
-func NewAuthServer(userRepo *repo.UserRepo, hasher *hash.Argon2Hasher) *AuthServer {
+func NewAuthServer(userRepo *repo.UserRepo, hasher *hash.Argon2Hasher, jwtManager *jwt.Manager) *AuthServer {
 	slog.Info("creating auth service")
 	return &AuthServer{
 		repo:   userRepo,
 		hasher: hasher,
+		jwt:    jwtManager,
 	}
 }
 
@@ -111,9 +114,15 @@ func (s *AuthServer) SignIn(ctx context.Context, req *authv1.SignInRequest) (*au
 		return nil, status.Error(codes.Unauthenticated, "invalid password")
 	}
 	
-	// TODO: Генерация JWT токена (следующий пункт)
-	accessToken := "temporary_token"
-	refreshToken := "temporary_refresh"
+	// Генерация JWT токена
+	accessToken, err := s.jwt.Sign(user.ID)
+	if err != nil {
+		slog.Error("failed to generate access token", slog.String("op", op), slog.Any("error", err))
+		return nil, status.Error(codes.Internal, "failed to generate token")
+	}
+	
+	// TODO: Refresh token будет реализован позже
+	refreshToken := ""
 	
 	slog.Info("user signed in", slog.String("op", op), slog.String("user_id", user.ID))
 	
@@ -133,10 +142,31 @@ func (s *AuthServer) ValidateToken(ctx context.Context, req *authv1.ValidateToke
 		return nil, status.Error(codes.InvalidArgument, "token required")
 	}
 	
-	// TODO: Проверка JWT токена (следующий пункт)
+	// Валидация JWT токена
+	claims, err := s.jwt.Validate(req.Token)
+	if err != nil {
+		if err == jwt.ErrExpiredToken {
+			slog.Warn("token expired", slog.String("op", op))
+			return &authv1.ValidateTokenResponse{
+				UserId: "",
+				Valid:  false,
+			}, nil
+		}
+		if err == jwt.ErrInvalidToken {
+			slog.Warn("invalid token", slog.String("op", op), slog.Any("error", err))
+			return &authv1.ValidateTokenResponse{
+				UserId: "",
+				Valid:  false,
+			}, nil
+		}
+		slog.Error("failed to validate token", slog.String("op", op), slog.Any("error", err))
+		return nil, status.Error(codes.Internal, "internal error")
+	}
+	
+	slog.Info("token validated", slog.String("op", op), slog.String("user_id", claims.UserID))
 	
 	return &authv1.ValidateTokenResponse{
-		UserId: "123",
+		UserId: claims.UserID,
 		Valid:  true,
 	}, nil
 }

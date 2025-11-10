@@ -30,3 +30,5 @@ exec ./auth-service
 
 
 
+
+
