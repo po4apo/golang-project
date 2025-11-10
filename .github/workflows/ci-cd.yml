@@ -230,7 +230,7 @@ jobs:
           JWT_ISSUER: ${{ secrets.JWT_ISSUER }}
           JWT_TTL: ${{ secrets.JWT_TTL }}
         run: |
-          ssh $SERVER_USER@$SERVER_HOST << 'ENDSSH'
+          ssh $SERVER_USER@$SERVER_HOST << ENDSSH
             set -e
             cd ${{ secrets.DEPLOY_PATH }}
             
@@ -240,13 +240,17 @@ jobs:
             export IMAGE_TAG=${{ github.ref_name }}
             export GIT_COMMIT=${{ github.sha }}
             export DEPLOYED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-            export POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+            export POSTGRES_PASSWORD='${{ secrets.POSTGRES_PASSWORD }}'
             export JWT_RSA_PRIVATE_KEY='${{ secrets.JWT_RSA_PRIVATE_KEY }}'
             export JWT_RSA_PUBLIC_KEY='${{ secrets.JWT_RSA_PUBLIC_KEY }}'
-            export JWT_ISSUER=${{ secrets.JWT_ISSUER || 'auth-service' }}
-            export JWT_TTL=${{ secrets.JWT_TTL || '24h' }}
-            export GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
+            export JWT_ISSUER='${{ secrets.JWT_ISSUER }}'
+            export JWT_TTL='${{ secrets.JWT_TTL }}'
+            export GITHUB_TOKEN='${{ secrets.GITHUB_TOKEN }}'
             export LOG_LEVEL=info
+            
+            # Устанавливаем значения по умолчанию, если не заданы
+            [ -z "\$JWT_ISSUER" ] && export JWT_ISSUER="auth-service"
+            [ -z "\$JWT_TTL" ] && export JWT_TTL="24h"
             
             # Логируем деплой
             echo "[$(date)] Starting deployment of version $IMAGE_TAG" >> deployment.log

@@ -54,35 +54,37 @@ check_env_vars() {
 create_env_file() {
     log_info "Создание .env файла..."
     
-    cat > .env <<EOF
-# Docker Registry Configuration
-REGISTRY=${REGISTRY}
-REPOSITORY=${REPOSITORY}
-IMAGE_TAG=${IMAGE_TAG}
-
-# Database Configuration
-POSTGRES_DB=authdb
-POSTGRES_USER=authuser
-POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-POSTGRES_PORT=5432
-
-# Services Configuration
-AUTH_SERVICE_PORT=50051
-REST_API_PORT=8080
-
-# JWT Configuration (RS256)
-JWT_RSA_PRIVATE_KEY=${JWT_RSA_PRIVATE_KEY}
-JWT_RSA_PUBLIC_KEY=${JWT_RSA_PUBLIC_KEY}
-JWT_ISSUER=${JWT_ISSUER:-auth-service}
-JWT_TTL=${JWT_TTL:-24h}
-
-# Logging
-LOG_LEVEL=${LOG_LEVEL:-info}
-
-# Deployment Metadata
-GIT_COMMIT=${GIT_COMMIT:-unknown}
-DEPLOYED_AT=${DEPLOYED_AT:-unknown}
-EOF
+    # Создаём .env файл по частям, чтобы корректно обработать многострочные ключи
+    {
+        echo "# Docker Registry Configuration"
+        echo "REGISTRY=${REGISTRY}"
+        echo "REPOSITORY=${REPOSITORY}"
+        echo "IMAGE_TAG=${IMAGE_TAG}"
+        echo ""
+        echo "# Database Configuration"
+        echo "POSTGRES_DB=authdb"
+        echo "POSTGRES_USER=authuser"
+        echo "POSTGRES_PASSWORD=${POSTGRES_PASSWORD}"
+        echo "POSTGRES_PORT=5432"
+        echo ""
+        echo "# Services Configuration"
+        echo "AUTH_SERVICE_PORT=50051"
+        echo "REST_API_PORT=8080"
+        echo ""
+        echo "# JWT Configuration (RS256)"
+        # Многострочные ключи записываем с экранированием
+        echo "JWT_RSA_PRIVATE_KEY=\"${JWT_RSA_PRIVATE_KEY}\""
+        echo "JWT_RSA_PUBLIC_KEY=\"${JWT_RSA_PUBLIC_KEY}\""
+        echo "JWT_ISSUER=${JWT_ISSUER:-auth-service}"
+        echo "JWT_TTL=${JWT_TTL:-24h}"
+        echo ""
+        echo "# Logging"
+        echo "LOG_LEVEL=${LOG_LEVEL:-info}"
+        echo ""
+        echo "# Deployment Metadata"
+        echo "GIT_COMMIT=${GIT_COMMIT:-unknown}"
+        echo "DEPLOYED_AT=${DEPLOYED_AT:-unknown}"
+    } > .env
     
     log_info ".env файл создан"
 }
