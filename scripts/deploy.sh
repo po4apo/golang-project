@@ -36,7 +36,8 @@ check_env_vars() {
         "REPOSITORY"
         "IMAGE_TAG"
         "POSTGRES_PASSWORD"
-        "JWT_SECRET_KEY"
+        "JWT_RSA_PRIVATE_KEY"
+        "JWT_RSA_PUBLIC_KEY"
     )
     
     for var in "${required_vars[@]}"; do
@@ -69,8 +70,11 @@ POSTGRES_PORT=5432
 AUTH_SERVICE_PORT=50051
 REST_API_PORT=8080
 
-# JWT Configuration
-JWT_SECRET_KEY=${JWT_SECRET_KEY}
+# JWT Configuration (RS256)
+JWT_RSA_PRIVATE_KEY=${JWT_RSA_PRIVATE_KEY}
+JWT_RSA_PUBLIC_KEY=${JWT_RSA_PUBLIC_KEY}
+JWT_ISSUER=${JWT_ISSUER:-auth-service}
+JWT_TTL=${JWT_TTL:-24h}
 
 # Logging
 LOG_LEVEL=${LOG_LEVEL:-info}
